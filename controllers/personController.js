@@ -3,9 +3,11 @@ import isString from "../utils/isString.js";
 import User from "../models/User.js";
 import getTokenFrom from "../utils/getTokenFrom.js";
 import jwt from "jsonwebtoken";
+import config from "../utils/config.js";
 
-async function getPersons(_, res) {
-  const persons = await Person.find({});
+async function getPersons(req, res) {
+  const decodedToken = jwt.verify(getTokenFrom(req), config.SECRET);
+  const persons = await Person.find({ user: decodedToken.id });
 
   return res.json(persons);
 }
@@ -23,29 +25,31 @@ async function getPerson(req, res, next) {
   }
 }
 
-async function createPerson(req, res) {
+async function createPerson(req, res, next) {
   try {
     const { name, number } = req.body;
-    const decodedToken = jwt(getTokenFrom(req). config.SECRET);
+    const decodedToken = jwt.verify(getTokenFrom(req), config.SECRET);
 
-    if (!decodedToken) {
+    if (!decodedToken.id) {
       return res.status(401).json({ error: "Token missing or invalid" });
     }
 
-    const user = await User.findById(decodedToken.id );
+    const user = await User.findById(decodedToken.id);
 
     const person = new Person({
       name,
       number,
-      user: user.id,
+      user: user._id,
     });
 
     const savedPerson = await person.save();
+
     user.persons = user.persons.concat(savedPerson._id);
+    await user.save();
 
     return res.status(201).json(savedPerson);
-  // eslint-disable-next-line no-empty
   } catch (error) {
+    next(error);
   }
 }
 
